@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Listen Live</title>
+</head>
+<body>
+  <h1>Listening</h1>
+  <button id="connect">Start Listening</button>
+
+  <script>
+    let audioContext;
+    let audioBuffer = [];
+    let ws;
+
+    function startListening() {
+      ws = new WebSocket('ws://localhost:8080');
+
+      ws.onopen = () => {
+        console.log("WebSocket connection opened for listener.");
+        ws.send(JSON.stringify({ type: 'listen' }));
+      };
+
+      ws.onmessage = (message) => {
+        const data = JSON.parse(message.data);
+
+        if (data.audio) {
+          console.log("Received audio data:", data.audio);
+          audioBuffer = audioBuffer.concat(data.audio);
+          playAudioBuffer();
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+      };
+
+      ws.onclose = (event) => {
+        console.log("WebSocket connection closed. Code:", event.code, "Reason:", event.reason);
+      };
+
+      audioContext = new AudioContext();
+    }
+
+    function playAudioBuffer() {
+      if (audioBuffer.length === 0 || !audioContext) return;
+
+      const buffer = audioContext.createBuffer(1, audioBuffer.length, audioContext.sampleRate);
+      buffer.getChannelData(0).set(audioBuffer);
+
+      const source = audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioContext.destination);
+      source.start();
+
+      console.log("Playing audio buffer");
+      audioBuffer = [];
+    }
+
+    document.getElementById('connect').onclick = startListening;
+  </script>
+</body>
+</html>

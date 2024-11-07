@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Broadcast</title>
+</head>
+<body>
+  <h1>Broadcasting</h1>
+  <button id="start">Start Broadcasting</button>
+
+  <script>
+    const ws = new WebSocket('ws://localhost:8080');
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'broadcast' }));
+      console.log("Connected to WebSocket server as broadcaster");
+    };
+
+    async function startBroadcasting() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const audioContext = new AudioContext();
+        const source = audioContext.createMediaStreamSource(stream);
+        const processor = audioContext.createScriptProcessor(1024, 1, 1);
+
+        // Connect audio source to the processor and play it locally as well for verification
+        source.connect(processor);
+        processor.connect(audioContext.destination);
+
+        // Process and send audio data over WebSocket
+        processor.onaudioprocess = (event) => {
+          const audioData = Array.from(event.inputBuffer.getChannelData(0));
+
+          // Log audio data for verification in the console
+          console.log("Broadcasting audio data:", audioData);
+
+          // Send audio data to the WebSocket server
+          ws.send(JSON.stringify({ type: 'audio', audio: audioData }));
+        };
+
+        console.log("Microphone access granted and broadcasting started.");
+      } catch (error) {
+        console.error("Error accessing microphone:", error);
+      }
+    }
+
+    document.getElementById('start').onclick = startBroadcasting;
+  </script>
+</body>
+</html>
