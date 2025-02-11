@@ -7,6 +7,7 @@
 <body>
   <h1>Listening</h1>
   <button id="connect">Start Listening</button>
+  <button id="stop">Stop Listening</button>
 
   <script>
     let audioContext;
@@ -43,6 +44,14 @@
       audioContext = new AudioContext();
     }
 
+    function stopListening() {
+      if (ws) {
+        ws.send(JSON.stringify({ type: 'stopListening' }));
+        ws.close();
+        console.log("Stopped listening and WebSocket connection closed.");
+      }
+    }
+
     function playAudioBuffer() {
       if (audioBuffer.length === 0 || !audioContext) return;
 
@@ -59,6 +68,7 @@
     }
 
     document.getElementById('connect').onclick = startListening;
+    document.getElementById('stop').onclick = stopListening;
   </script>
 </body>
 </html>

@@ -41,13 +41,21 @@ wss.on('connection', (ws) => {
       } else if (data.type === 'audio') {
         if (ws.isBroadcaster) {
           // Forward audio data to all listeners
-        //   console.log("Forwarding audio to listeners");
           listeners.forEach(listener => {
             if (listener.readyState === WebSocket.OPEN) {
               listener.send(JSON.stringify({ audio: data.audio }));
             }
           });
         }
+      } else if (data.type === 'stopBroadcast') {
+        if (ws.isBroadcaster) {
+          broadcaster = null;
+          ws.isBroadcaster = false;
+          console.log("Broadcaster stopped broadcasting");
+        }
+      } else if (data.type === 'stopListening') {
+        listeners.delete(ws);
+        console.log("Listener stopped listening. Remaining listeners:", listeners.size);
       }
     } catch (error) {
       console.error("Error parsing message:", error);

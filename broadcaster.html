@@ -7,9 +7,12 @@
 <body>
   <h1>Broadcasting</h1>
   <button id="start">Start Broadcasting</button>
+  <button id="stop">Stop Broadcasting</button>
 
   <script>
     const ws = new WebSocket('ws://localhost:8080');
+    let mediaRecorder;
+    let recordedChunks = [];
 
     ws.onopen = () => {
       ws.send(JSON.stringify({ type: 'broadcast' }));
@@ -21,7 +24,6 @@
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const audioContext = new AudioContext();
         const source = audioContext.createMediaStreamSource(stream);
-        //audio quality depens on the buffer size (1024, 2048, 4096, 8192, 16384)
         const processor = audioContext.createScriptProcessor(8192, 1, 1);
 
         // Connect audio source to the processor and play it locally as well for verification
@@ -31,21 +33,48 @@
         // Process and send audio data over WebSocket
         processor.onaudioprocess = (event) => {
           const audioData = Array.from(event.inputBuffer.getChannelData(0));
-
-          // Log audio data for verification in the console commented to clear the console
-          // console.log("Broadcasting audio data:", audioData);
-
-          // Send audio data to the WebSocket server
           ws.send(JSON.stringify({ type: 'audio', audio: audioData }));
         };
 
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            recordedChunks.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+            a.href = url;
+            a.download = './podcasts/broadcast.webm';
+          a.download = 'broadcast.webm';
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          recordedChunks = [];
+        };
+
+        mediaRecorder.start();
         console.log("Microphone access granted and broadcasting started.");
       } catch (error) {
         console.error("Error accessing microphone:", error);
       }
     }
 
+    function stopBroadcasting() {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        ws.send(JSON.stringify({ type: 'stopBroadcast' }));
+        ws.close();
+        console.log("Stopped broadcasting and WebSocket connection closed.");
+      }
+    }
+
     document.getElementById('start').onclick = startBroadcasting;
+    document.getElementById('stop').onclick = stopBroadcasting;
   </script>
 </body>
 </html>
