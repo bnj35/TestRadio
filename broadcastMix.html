@@ -2,52 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Broadcast</title>
-  <style>
-    .drop-zone {
-      width: 300px;
-      height: 100px;
-      border: 2px dashed #ccc;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 20px;
-    }
-    .controls {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-  </style>
 </head>
 <body>
   <h1>Broadcasting</h1>
   <button id="start">Start Broadcasting</button>
   <button id="stop">Stop Broadcasting</button>
 
-  <h1>Table de Mixage</h1>
-  <div class="drop-zone" id="drop-zone"></div>
-    Déposez vos fichiers audio ici
-  </div>
-  <div class="controls"></div>
-    <button id="play-audio">Lire l'audio</button>
-    <button id="stop-audio">Arrêter l'audio</button>
-    <label for="micro-volume">Volume Micro:</label>
-    <input type="range" id="micro-volume" min="0" max="100" value="50">
-    <label for="desktop-volume">Volume Bureau:</label>
-    <input type="range" id="desktop-volume" min="0" max="100" value="50">
-  </div>
-  <audio id="audio-player" controls></audio>
-
   <script>
     const ws = new WebSocket('ws://localhost:8080');
     let mediaRecorder;
     let recordedChunks = [];
-    let audioContext;
-    let desktopAudioSource;
-    let microphoneSource;
-    let gainNode;
 
     ws.onopen = () => {
       ws.send(JSON.stringify({ type: 'broadcast' }));
@@ -57,16 +22,15 @@
     async function startBroadcasting() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        audioContext = new AudioContext();
-        microphoneSource = audioContext.createMediaStreamSource(stream);
-        gainNode = audioContext.createGain();
-        microphoneSource.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-
+        const audioContext = new AudioContext();
+        const source = audioContext.createMediaStreamSource(stream);
         const processor = audioContext.createScriptProcessor(8192, 1, 1);
-        gainNode.connect(processor);
+
+        // Connect audio source to the processor and play it locally as well for verification
+        source.connect(processor);
         processor.connect(audioContext.destination);
 
+        // Process and send audio data over WebSocket
         processor.onaudioprocess = (event) => {
           const audioData = Array.from(event.inputBuffer.getChannelData(0));
           ws.send(JSON.stringify({ type: 'audio', audio: audioData }));
@@ -84,7 +48,8 @@
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.style.display = 'none';
-          a.href = url;
+            a.href = url;
+            a.download = './podcasts/broadcast.webm';
           a.download = 'broadcast.webm';
           document.body.appendChild(a);
           a.click();
@@ -110,59 +75,6 @@
 
     document.getElementById('start').onclick = startBroadcasting;
     document.getElementById('stop').onclick = stopBroadcasting;
-
-    const dropZone = document.getElementById('drop-zone');
-    const audioPlayer = document.getElementById('audio-player');
-    const playButton = document.getElementById('play-audio');
-    const stopButton = document.getElementById('stop-audio');
-    const microVolume = document.getElementById('micro-volume');
-    const desktopVolume = document.getElementById('desktop-volume');
-
-    dropZone.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      dropZone.style.borderColor = 'green';
-    });
-
-    dropZone.addEventListener('dragleave', () => {
-      dropZone.style.borderColor = '#ccc';
-    });
-
-    dropZone.addEventListener('drop', (event) => {
-      event.preventDefault();
-      dropZone.style.borderColor = '#ccc';
-      const files = event.dataTransfer.files;
-      if (files.length > 0) {
-        const file = files[0];
-        const url = URL.createObjectURL(file);
-        audioPlayer.src = url;
-        const audioElement = new Audio(url);
-        desktopAudioSource = audioContext.createMediaElementSource(audioElement);
-        desktopAudioSource.connect(audioContext.destination);
-      }
-    });
-
-    playButton.addEventListener('click', () => {
-      audioPlayer.play();
-    });
-
-    stopButton.addEventListener('click', () => {
-      audioPlayer.pause();
-      audioPlayer.currentTime = 0;
-    });
-
-    microVolume.addEventListener('input', (event) => {
-      const volume = event.target.value / 100;
-      gainNode.gain.value = volume;
-      console.log('Volume Micro:', volume);
-    });
-
-    desktopVolume.addEventListener('input', (event) => {
-      const volume = event.target.value / 100;
-      if (desktopAudioSource) {
-        desktopAudioSource.gain.value = volume;
-      }
-      console.log('Volume Bureau:', volume);
-    });
   </script>
 </body>
 </html>
